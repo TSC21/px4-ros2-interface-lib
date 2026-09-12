@@ -82,6 +82,7 @@ set(HEADER_FILES
         include/px4_ros2/components/manual_control_input.hpp
         include/px4_ros2/components/message_compatibility_check.hpp
         include/px4_ros2/components/mode.hpp
+        include/px4_ros2/components/mode_overlay.hpp
         include/px4_ros2/components/mode_executor.hpp
         include/px4_ros2/components/node_with_mode.hpp
         include/px4_ros2/components/overrides.hpp
@@ -139,6 +140,7 @@ add_library(px4_ros2_cpp
         src/components/manual_control_input.cpp
         src/components/message_compatibility_check.cpp
         src/components/mode.cpp
+        src/components/mode_overlay.cpp
         src/components/mode_executor.cpp
         src/components/overrides.cpp
         src/components/registration.cpp
