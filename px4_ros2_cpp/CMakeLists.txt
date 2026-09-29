@@ -242,6 +242,7 @@ if(BUILD_TESTING)
             test/unit/local_navigation.cpp
             test/unit/main.cpp
             test/unit/mission_execution.cpp
+            test/unit/mode_overlay.cpp
             test/unit/modes.cpp
             test/unit/registration.cpp
             test/unit/shared_subscription.cpp

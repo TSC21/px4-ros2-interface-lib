@@ -29,6 +29,8 @@ class ModeOverlayBase {
     uint32_t applicable_modes_mask{0x7f80407cU};
     float max_position_deviation_m{3.f};
     std::string topic_namespace_prefix{};
+    /** Ask for heading authority; PX4 grants it only with COM_OVL_YAW enabled. */
+    bool request_yaw_authority{false};
   };
 
   ModeOverlayBase(rclcpp::Node& node, Settings settings);
@@ -42,6 +44,11 @@ class ModeOverlayBase {
   bool doRegister(std::chrono::milliseconds timeout = std::chrono::seconds(5));
   bool registered() const;
   bool engaged() const;
+  /**
+   * The latest firmware status (at most 500 ms old) grants this session heading authority:
+   * replacement yaw and yawspeed then drive the vehicle heading.
+   */
+  bool yawAuthority() const;
   const px4_msgs::msg::ModeOverlayStatus& status() const;
 
  protected:
@@ -50,11 +57,18 @@ class ModeOverlayBase {
   virtual void onEngaged() {}
   virtual void onDisengaged() {}
 
-  /** Full finite local-NED p/v/a/jerk; the FMU preserves the source mode's yaw. */
+  /**
+   * Full finite local-NED p/v/a/jerk. With yawAuthority(), a finite yaw [rad] and yawspeed
+   * [rad/s] drive the heading within the firmware's auto yaw limits and a NaN yaw keeps the
+   * source mode heading; without it the FMU always keeps the source mode heading.
+   */
   bool publishReplacement(const px4_msgs::msg::TrajectorySetpoint& setpoint, bool ready = true);
   bool publishPassthrough(bool ready = true);
   /** STOP invokes PX4's jerk-limited brake. A healthy planner can legitimately stop. */
   bool publishStop(bool ready);
+
+  /** For tests without an FMU: register without the message format handshake. */
+  void setSkipMessageCompatibilityCheck();
 
  private:
   class Impl;

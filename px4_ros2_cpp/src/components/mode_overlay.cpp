@@ -103,6 +103,7 @@ class ModeOverlayBase::Impl {
     std::copy(settings.name.begin(), settings.name.end(), request.name.begin());
     request.applicable_modes = settings.applicable_modes_mask;
     request.max_deviation = settings.max_position_deviation_m;
+    request.yaw_authority = settings.request_yaw_authority;
     return request;
   }
 
@@ -115,7 +116,8 @@ class ModeOverlayBase::Impl {
                                                           {"fmu/out/mode_overlay_reply"},
                                                           {"fmu/out/mode_overlay_input"},
                                                           {"fmu/out/mode_overlay_status"}};
-    if (!messageCompatibilityCheck(node, messages, prefix)) return false;
+    if (!skip_message_compatibility_check && !messageCompatibilityCheck(node, messages, prefix))
+      return false;
     rclcpp::WaitSet wait_set;
     wait_set.add_subscription(reply_sub);
     const auto deadline = Clock::now() + timeout;
@@ -138,11 +140,14 @@ class ModeOverlayBase::Impl {
       }
       if (reply.applicable_modes == 0 || !std::isfinite(reply.max_deviation) ||
           reply.max_deviation <= 0.f ||
-          (reply.applicable_modes & ~settings.applicable_modes_mask) != 0)
+          (reply.applicable_modes & ~settings.applicable_modes_mask) != 0 ||
+          (reply.yaw_authority && !settings.request_yaw_authority))
         break;
       is_registered = true;
-      RCLCPP_INFO(node.get_logger(), "Registered overlay '%s', granted reference radius %.2f m",
-                  settings.name.c_str(), static_cast<double>(reply.max_deviation));
+      RCLCPP_INFO(node.get_logger(),
+                  "Registered overlay '%s', granted reference radius %.2f m, heading authority %s",
+                  settings.name.c_str(), static_cast<double>(reply.max_deviation),
+                  reply.yaw_authority ? "granted" : "not granted");
       break;
     }
     wait_set.remove_subscription(reply_sub);
@@ -181,6 +186,7 @@ class ModeOverlayBase::Impl {
   std::string prefix;
   uint64_t session{0}, sequence{0}, last_intent{0};
   bool is_registered{false}, is_engaged{false}, can_publish{false};
+  bool skip_message_compatibility_check{false};
   Status last_status{};
   Clock::time_point last_input_time{}, last_status_time{};
   rclcpp::CallbackGroup::SharedPtr reply_group;
@@ -209,6 +215,12 @@ bool ModeOverlayBase::engaged() const
 {
   return _impl->is_engaged;
 }
+bool ModeOverlayBase::yawAuthority() const
+{
+  return _impl->is_registered && _impl->last_status.session_id == _impl->session &&
+         _impl->last_status.yaw_authority &&
+         Impl::Clock::now() - _impl->last_status_time <= std::chrono::milliseconds(500);
+}
 const px4_msgs::msg::ModeOverlayStatus& ModeOverlayBase::status() const
 {
   return _impl->last_status;
@@ -226,6 +238,10 @@ bool ModeOverlayBase::publishPassthrough(bool ready)
 bool ModeOverlayBase::publishStop(bool ready)
 {
   return _impl->publish(Impl::Output::ACTION_STOP, px4_msgs::msg::TrajectorySetpoint{}, ready);
+}
+void ModeOverlayBase::setSkipMessageCompatibilityCheck()
+{
+  _impl->skip_message_compatibility_check = true;
 }
 
 }  // namespace px4_ros2
